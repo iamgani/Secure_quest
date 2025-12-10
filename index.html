@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
+  <title>Secure Quest</title>
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b84ff">
+
+  <!-- Preload critical assets -->
+  <link rel="preload" href="assets/building_real.png" as="image">
+  <link rel="preload" href="assets/security_area.png" as="image">
+  <link rel="preload" href="assets/iris_door.png" as="image">
+  <link rel="preload" href="assets/desk_area.png" as="image">
+  <link rel="preload" href="assets/interface.png" as="image">
+  <link rel="preload" href="assets/music_bg.mp3" as="audio">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+<!-- SPLASH -->
+<main id="splash" class="screen">
+  <img src="assets/interface.png" alt="Secure Quest" class="splash-img" />
+
+  <div class="splash-body">
+    <h1>Secure Quest</h1>
+    <p class="muted">Scan the QR on your phone, enter a name and guide the user through 4 access checks.</p>
+
+    <input id="playerName" type="text" placeholder="Enter your name" autocomplete="name" />
+
+    <button id="startBtn" class="primary large-btn">Start the Mission</button>
+  </div>
+</main>
+
+
+    <!-- GAME -->
+    <section id="game" class="screen hidden" aria-hidden="true">
+      <header class="topbar">
+        <div id="timer">Time: 0s</div>
+        <div id="stage">Stage 1/4</div>
+      </header>
+
+      <div class="scene">
+        <img id="scene-bg" src="assets/building_real.png" class="scene-bg" alt="Scene background">
+
+        <div id="door" class="door closed" aria-hidden="true">
+          <div class="door-left"></div>
+          <div class="door-right"></div>
+          <div class="door-label">Doors</div>
+        </div>
+
+        <div id="signboard" class="signboard">Entrance</div>
+      </div>
+
+      <div class="controls">
+        <div id="message" class="message" aria-live="polite"></div>
+        <div id="notes" class="notes" aria-live="polite"></div>
+        <div id="btnRow" class="btn-row" role="group" aria-label="Choices"></div>
+      </div>
+    </section>
+
+    <!-- SUCCESS -->
+    <section id="success" class="screen hidden" aria-hidden="true">
+      <h2>Access Granted!</h2>
+      <p id="finalTime" class="final-time"></p>
+
+      <div id="solutionsSummary" class="solutions-summary" aria-live="polite"></div>
+
+      <div id="blast" class="blast" aria-hidden="true"></div>
+      <div id="ranking" class="ranking" aria-live="polite"></div>
+
+      <div class="action-row">
+        <button id="retryBtn" class="primary">Play Again</button>
+        <a id="shareBtn" class="link-btn" href="#" role="button">Share</a>
+      </div>
+    </section>
+
+    <!-- FAIL -->
+    <section id="fail" class="screen hidden" aria-hidden="true">
+      <h2>You failed access</h2>
+      <p id="failReason"></p>
+      <button id="failRetry" class="primary">Retry</button>
+    </section>
+  </div>
+
+  <!-- Audio elements (optional) -->
+  <audio id="bgMusic" src="assets/music_bg.mp3" loop preload="auto" aria-hidden="true"></audio>
+  <audio id="sfxSuccess" src="assets/sfx_success.mp3" preload="auto" aria-hidden="true"></audio>
+  <audio id="sfxFail" src="assets/sfx_fail.mp3" preload="auto" aria-hidden="true"></audio>
+
+  <script src="main.js" defer></script>
+
+  <!-- service worker registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(()=>{ /* ignore */ });
+    }
+  </script>
+</body>
+</html>
