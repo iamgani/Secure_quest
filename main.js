@@ -55,9 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
       bg: assets.stage1,
       prompt: 'At the building entrance, which credential do you present to the attendant?',
       choices: [
-        { label: 'A. Present your Employee ID card (swapped card allowed)', success: true },
+        { label: 'A. Place your thumb on a reader', success: false },
         { label: 'B. Show a selfie from your phone', success: false },
-        { label: 'C. Place your thumb on a reader', success: false },
+        { label: 'C. Present your Employee ID card (swapped card allowed)', success: true },
         { label: 'D. Provide an iris image', success: false }
       ],
       note: `<strong>Requirement:</strong> Secure card-based entry with swap detection and credential validation.<br>
@@ -85,9 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
       bg: assets.stage3,
       prompt: 'The inner gate requires a high-security biometric; which do you present?',
       choices: [
-        { label: 'A. Present an iris/eye scan to the reader', success: true },
+        { label: 'Step in for a face scan', success: false },
         { label: 'B. Swipe your ID card', success: false },
-        { label: 'C. Step in for a face scan', success: false },
+        { label: 'C. Present an iris/eye scan to the reader', success: true },
         { label: 'D. Try thumb reader input', success: false }
       ],
       note: `<strong>Requirement:</strong> Fast, contactless iris recognition for high-security gate control with low false accepts.<br>
@@ -100,10 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
       bg: assets.stage4,
       prompt: 'At the desk terminal, which method grants local device or desk access?',
       choices: [
-        { label: 'A. Press your thumb on the fingerprint sensor', success: true },
+        { label: 'A. Provide an iris image', success: false  },
         { label: 'B. Show your face to a nearby camera', success: false },
         { label: 'C. Swipe or present an ID card', success: false },
-        { label: 'D. Provide an iris image', success: false }
+        { label: 'D. Press your thumb on the fingerprint sensor', success: true }
       ],
       note: `<strong>Requirement:</strong> Reliable fingerprint/thumb authentication for desk-level access and equipment unlocking.<br>
              <strong>How Honeywell helps:</strong> Honeywell's fingerprint-enabled readers provide dependable desk and device access with audit trails.`,
