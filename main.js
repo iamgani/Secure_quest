@@ -85,9 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
       bg: assets.stage3,
       prompt: 'The inner gate requires a high-security biometric; which do you present?',
       choices: [
-        { label: 'Step in for a face scan', success: false },
-        { label: 'B. Swipe your ID card', success: false },
-        { label: 'C. Present an iris/eye scan to the reader', success: true },
+        { label: 'A. Step in for a face scan', success: false },
+        { label: 'B. Present an iris/eye scan to the reader', success: true  },
+        { label: 'C. Swipe your ID card', success: false },
         { label: 'D. Try thumb reader input', success: false }
       ],
       note: `<strong>Requirement:</strong> Fast, contactless iris recognition for high-security gate control with low false accepts.<br>
