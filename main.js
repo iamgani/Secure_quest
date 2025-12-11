@@ -1,10 +1,9 @@
-// main.js — client with reliable server sync + persistent pending queue
+// main.js — client with robust send-or-queue and improved mobile layout handling
 document.addEventListener('DOMContentLoaded', () => {
-  // === CONFIG: set this to your deployed API origin (no trailing slash) ===
-  // Example: const API_BASE = 'https://secure-quest-api.example.com'
-  const API_BASE = 'https://REPLACE_WITH_YOUR_SERVER_URL';
+  // API base read from config.js (window.API_BASE). If not set, the client still works in offline/local fallback mode.
+  const API_BASE = (window && window.API_BASE) ? window.API_BASE : '';
 
-  // === DOM refs ===
+  // DOM refs
   const splash = document.getElementById('splash');
   const startBtn = document.getElementById('startBtn');
   const playerNameInput = document.getElementById('playerName');
@@ -56,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let timerInt = null;
   let elapsed = 0;
 
-  // static assets
+  // assets
   const assets = {
     stage1: 'assets/building_real.png',
     stage2: 'assets/security_area.png',
@@ -64,53 +63,84 @@ document.addEventListener('DOMContentLoaded', () => {
     stage4: 'assets/desk_area.png'
   };
 
-  // stages config (same as before)
+  // stages config (same)
   const STAGES = {
-    1: { label: 'Entrance', bg: assets.stage1, prompt: 'At the building entrance, which credential do you present to the attendant?', choices: [
-      { label: 'A. Place your thumb on a reader', success: false },
-      { label: 'B. Show a selfie from your phone', success: false },
-      { label: 'C. Present your Employee ID card (swapped card allowed)', success: true },
-      { label: 'D. Provide an iris image', success: false }
-    ], note: `<strong>Requirement:</strong> Secure card-based entry with swap detection and credential validation.`, failDoesExit: false, failMsg: 'Wrong item — guard still lets you inside but marks you suspicious.' },
-    2: { label: 'Security Area', bg: assets.stage2, prompt: 'A camera asks for a live facial match — what do you present to the camera?', choices: [
-      { label: 'A. Look directly into the camera for a live face match', success: true },
-      { label: 'B. Hold up your ID card to the camera', success: false },
-      { label: 'C. Show your thumb to the camera', success: false },
-      { label: 'D. Show a printed eye photo', success: false }
-    ], note: `<strong>Requirement:</strong> Liveness and face-matching checks.`, failDoesExit: true, failMsg: 'Camera mismatch — you are escorted out.' },
-    3: { label: 'Iris Gate', bg: assets.stage3, prompt: 'The inner gate requires a high-security biometric; which do you present?', choices: [
-      { label: 'A. Step in for a face scan', success: false },
-      { label: 'B. Present an iris/eye scan to the reader', success: true  },
-      { label: 'C. Swipe your ID card', success: false },
-      { label: 'D. Try thumb reader input', success: false }
-    ], note: `<strong>Requirement:</strong> Iris recognition.`, failDoesExit: true, failMsg: 'Wrong biometric — access denied.' },
-    4: { label: 'Desk Access', bg: assets.stage4, prompt: 'At the desk terminal, which method grants local device or desk access?', choices: [
-      { label: 'A. Provide an iris image', success: false  },
-      { label: 'B. Show your face to a nearby camera', success: false },
-      { label: 'C. Swipe or present an ID card', success: false },
-      { label: 'D. Press your thumb on the fingerprint sensor', success: true }
-    ], note: `<strong>Requirement:</strong> Fingerprint authentication.`, failDoesExit: true, failMsg: 'Wrong access method — escorted out.' }
+    1: {
+      label: 'Entrance',
+      bg: assets.stage1,
+      prompt: 'At the building entrance, which credential do you present to the attendant?',
+      choices: [
+        { label: 'A. Place your thumb on a reader', success: false },
+        { label: 'B. Show a selfie from your phone', success: false },
+        { label: 'C. Present your Employee ID card (swapped card allowed)', success: true },
+        { label: 'D. Provide an iris image', success: false }
+      ],
+      note: `<strong>Requirement:</strong> Secure card-based entry with swap detection and credential validation.<br>
+             <strong>How Honeywell helps:</strong> Honeywell's ID-card access platforms detect tampering and swaps, validate credentials and integrate logs for audit — proven across multiple customer sites.`,
+      failDoesExit: false,
+      failMsg: 'Wrong item — guard still lets you inside but marks you suspicious.'
+    },
+    2: {
+      label: 'Security Area',
+      bg: assets.stage2,
+      prompt: 'A camera asks for a live facial match — what do you present to the camera?',
+      choices: [
+        { label: 'A. Look directly into the camera for a live face match', success: true },
+        { label: 'B. Hold up your ID card to the camera', success: false },
+        { label: 'C. Show your thumb to the camera', success: false },
+        { label: 'D. Show a printed eye photo', success: false }
+      ],
+      note: `<strong>Requirement:</strong> Liveness and face-matching resistant to spoof attempts and securely logged.<br>
+             <strong>How Honeywell helps:</strong> Honeywell's facial recognition integrates liveness checks with enterprise monitoring, delivering accurate verification.`,
+      failDoesExit: true,
+      failMsg: 'Camera mismatch — you are escorted out.'
+    },
+    3: {
+      label: 'Iris Gate',
+      bg: assets.stage3,
+      prompt: 'The inner gate requires a high-security biometric; which do you present?',
+      choices: [
+        { label: 'A. Step in for a face scan', success: false },
+        { label: 'B. Present an iris/eye scan to the reader', success: true  },
+        { label: 'C. Swipe your ID card', success: false },
+        { label: 'D. Try thumb reader input', success: false }
+      ],
+      note: `<strong>Requirement:</strong> Fast, contactless iris recognition for high-security gate control with low false accepts.<br>
+             <strong>How Honeywell helps:</strong> Honeywell deploys high-accuracy iris readers integrated with access control systems to secure sensitive entry points.`,
+      failDoesExit: true,
+      failMsg: 'Wrong biometric — access denied.'
+    },
+    4: {
+      label: 'Desk Access',
+      bg: assets.stage4,
+      prompt: 'At the desk terminal, which method grants local device or desk access?',
+      choices: [
+        { label: 'A. Provide an iris image', success: false  },
+        { label: 'B. Show your face to a nearby camera', success: false },
+        { label: 'C. Swipe or present an ID card', success: false },
+        { label: 'D. Press your thumb on the fingerprint sensor', success: true }
+      ],
+      note: `<strong>Requirement:</strong> Reliable fingerprint/thumb authentication for desk-level access and equipment unlocking.<br>
+             <strong>How Honeywell helps:</strong> Honeywell's fingerprint-enabled readers provide dependable desk and device access with audit trails.`,
+      failDoesExit: true,
+      failMsg: 'Wrong access method — escorted out.'
+    }
   };
 
-  // pending queue key (stores events which couldn't be sent)
-  const PENDING_KEY = 'secureQuest_pendingEvents';
+  // pending queue key
+  const PENDING_KEY = 'secureQuest_pendingEvents_v2';
 
-  function getPending() {
-    try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e) { return []; }
-  }
+  function getPending() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e) { return []; } }
   function setPending(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); } catch(e) {} }
-
-  // queue an event { type: 'play'|'retry'|'complete'|'score', payload: {...}, ts }
   function queueEvent(evt) {
-    const list = getPending();
-    list.push(Object.assign({ ts: Date.now() }, evt));
-    setPending(list);
+    const list = getPending(); list.push(Object.assign({ ts: Date.now() }, evt)); setPending(list);
   }
 
-  // POST helper: returns parsed JSON on success, null on failure
+  // fetch helpers
   async function apiPost(path, body) {
     if (!API_BASE || API_BASE.includes('REPLACE_WITH_YOUR_SERVER_URL')) {
-      console.warn('API_BASE not configured — set API_BASE to your server URL for global stats.');
+      // API base not configured
+      console.warn('API_BASE not configured. Set window.API_BASE in config.js to your server URL.');
       return null;
     }
     try {
@@ -128,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // GET helper
   async function apiGet(path) {
     if (!API_BASE || API_BASE.includes('REPLACE_WITH_YOUR_SERVER_URL')) return null;
     try {
@@ -141,31 +170,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // attempt to flush pending events (FIFO). For each event, call appropriate endpoint.
+  // flush pending events FIFO
   async function flushPending() {
     const list = getPending();
     if (!list || !list.length) return;
-    const remaining = [];
+    const still = [];
     for (const evt of list) {
-      let ok = null;
       try {
+        let ok = null;
         if (evt.type === 'play') ok = await apiPost('/api/play', { name: evt.payload.name });
         else if (evt.type === 'retry') ok = await apiPost('/api/retry', {});
         else if (evt.type === 'complete') ok = await apiPost('/api/complete', {});
         else if (evt.type === 'score') ok = await apiPost('/api/score', { name: evt.payload.name, time: evt.payload.time });
-      } catch (e) {
-        ok = null;
-      }
-      if (!ok) remaining.push(evt); // keep it
+        if (!ok) still.push(evt);
+      } catch (e) { still.push(evt); }
     }
-    setPending(remaining);
-    // if we successfully flushed any, optionally refresh modal data
+    setPending(still);
   }
 
-  // flush periodically
-  setInterval(flushPending, 20_000); // every 20s
+  // periodic flush & on online / focus
+  setInterval(flushPending, 20000);
+  window.addEventListener('online', flushPending);
+  window.addEventListener('focus', flushPending);
 
-  // --- UI helpers and game logic (unchanged flow, plus server calls) ---
+  // UI helpers & game logic
   function show(el) { if (el) el.classList.remove('hidden'); }
   function hide(el) { if (el) el.classList.add('hidden'); }
 
@@ -181,6 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function showScreen(screenEl) {
     [splash, game, successScreen, failScreen].forEach(s => s && s.classList.add('hidden'));
     if (screenEl) screenEl.classList.remove('hidden');
+    // ensure scrolling to top on mobile when switching screens
+    try { window.scrollTo(0,0); } catch(e) {}
   }
 
   function loadStage(n) {
@@ -214,9 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (message) message.textContent = 'Verified — opening doors...';
       if (door) door.classList.add('open');
       try { if (sfxSuccess) { sfxSuccess.currentTime = 0; sfxSuccess.play(); } } catch (e) {}
-      setTimeout(() => {
-        if (stage < 4) loadStage(stage + 1); else winGame();
-      }, 850);
+      setTimeout(() => { if (stage < 4) loadStage(stage + 1); else winGame(); }, 850);
     } else {
       if (!s.failDoesExit && stage === 1) {
         if (message) message.textContent = s.failMsg;
@@ -250,18 +278,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // render modal stats by fetching server stats (authoritative)
+  // render stats + leaderboard in modal (tries to flush pending first)
   async function renderModalStatsPanel() {
+    await flushPending();
     let stats = await apiGet('/api/stats');
     if (!stats) {
-      // server unreachable — try to show pending / fallback info
+      // fallback: show pending count if any
       const pending = getPending();
-      // minimal fallback display
       stats = { totalPlays: '–', totalCompletions: '–', totalRetries: '–', lastPlayer: '–', lastPlayedAt: null };
-      if (pending && pending.length) {
-        // show how many pending events we have to be synced
-        stats._pending = pending.length;
-      }
+      if (pending && pending.length) stats._pending = pending.length;
     }
     if (!modalStats) return;
     const lastPlayed = stats.lastPlayedAt ? new Date(stats.lastPlayedAt).toLocaleString() : '—';
@@ -275,21 +300,14 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  // render modal leaderboard by fetching server
   async function renderModalLeaderboard() {
-    let top = await apiGet('/api/leaderboard?limit=5');
-    if (!top) {
-      // no server — show pending scores if any
-      const pending = getPending().filter(e => e.type === 'score').map(e => ({ name: e.payload.name, time: e.payload.time }));
-      top = pending.slice(0,5);
-    }
+    const top = await apiGet('/api/leaderboard?limit=5') || [];
     if (!modalLeaderboard) return;
     modalLeaderboard.innerHTML = '<h3>Leaderboard</h3>';
     if (!top || !top.length) { modalLeaderboard.innerHTML += '<div class="small-muted">No records yet</div>'; return; }
     const ul = document.createElement('div'); ul.className = 'leaderboard-list';
     top.forEach((r, idx) => {
-      const item = document.createElement('div');
-      item.className = 'leader-item';
+      const item = document.createElement('div'); item.className = 'leader-item';
       item.textContent = `${idx+1}. ${r.name} — ${r.time}s`;
       ul.appendChild(item);
     });
@@ -297,8 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function openStatsModal() {
-    // try flush first (so modal shows freshest when server available)
-    await flushPending();
     await renderModalStatsPanel();
     await renderModalLeaderboard();
     show(modal);
@@ -306,19 +322,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function closeStatsModal() { hide(modal); }
 
-  // --- start/retry/complete logic with send-or-queue behavior ---
+  // start/retry/complete with queue fallback
   async function startHandler() {
     const name = playerNameInput && playerNameInput.value ? playerNameInput.value.trim() : '';
     if (!name) { if (playerNameInput) playerNameInput.focus(); return; }
     playerName = name;
 
     const res = await apiPost('/api/play', { name: playerName });
-    if (!res) {
-      // queue the event for later
-      queueEvent({ type: 'play', payload: { name: playerName } });
-    }
+    if (!res) queueEvent({ type: 'play', payload: { name: playerName } });
 
-    // audio play attempt
     try { if (bgMusic) { bgMusic.volume = 0.25; bgMusic.currentTime = 0; bgMusic.play().catch(()=>{}); } } catch(e) {}
 
     showScreen(game);
@@ -328,7 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function winGame() {
     stopTimer();
-
     const res = await apiPost('/api/complete', {});
     if (!res) queueEvent({ type: 'complete', payload: {} });
 
@@ -336,11 +347,28 @@ document.addEventListener('DOMContentLoaded', () => {
     try { if (sfxSuccess) { sfxSuccess.currentTime = 0; sfxSuccess.play(); } } catch (e) {}
     runBlast();
 
-    // submit score
     const saved = await apiPost('/api/score', { name: playerName, time: elapsed });
     if (!saved) queueEvent({ type: 'score', payload: { name: playerName, time: elapsed } });
 
+    // insert solutions summary (ensures visible on mobile)
+    if (solutionsSummary) {
+      solutionsSummary.innerHTML = `
+        <h4>Solutions provided by Honeywell's in-house team</h4>
+        <p>Our in-house team delivers an integrated suite of access solutions tailored for enterprise security needs:</p>
+        <ul>
+          <li><strong>Card-based access</strong> with swap/tamper detection and credential validation for secure entrances.</li>
+          <li><strong>Camera-based facial recognition</strong> with liveness detection and enterprise monitoring.</li>
+          <li><strong>Contactless iris scanning</strong> for high-security gates with very low false-accept rates.</li>
+          <li><strong>Fingerprint/thumb authentication</strong> for desk-level access and equipment unlocking with audit trails.</li>
+          <li><strong>System integration & monitoring</strong> — centralized logs, audit reporting and easy enterprise integration.</li>
+        </ul>
+        <p>These solutions have been implemented and supported by Honeywell for multiple customers across various industries.</p>
+      `;
+    }
+
     showScreen(successScreen);
+    // scroll success screen into view on mobile
+    try { setTimeout(()=> window.scrollTo({ top: 0, behavior: 'smooth' }), 100); } catch(e) {}
   }
 
   async function failGame(msg) {
@@ -359,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (playerNameInput) playerNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startHandler(); });
 
-  if (retryBtn) retryBtn.addEventListener('click', ()=> { queueEvent({ type: 'retry', payload: {} }); location.reload(); });
+  if (retryBtn) retryBtn.addEventListener('click', () => { queueEvent({ type: 'retry', payload: {} }); location.reload(); });
   if (failRetry) failRetry.addEventListener('click', ()=> { queueEvent({ type: 'retry', payload: {} }); location.reload(); });
 
   if (shareBtn) shareBtn.addEventListener('click', (e) => {
@@ -369,7 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
     else navigator.clipboard && navigator.clipboard.writeText(url).then(()=> alert('Link copied to clipboard'));
   });
 
-  // stats button opens modal (authoritative server)
   if (statsBtn) statsBtn.addEventListener('click', openStatsModal);
   if (statsBtnGame) statsBtnGame.addEventListener('click', openStatsModal);
   if (statsBtnSuccess) statsBtnSuccess.addEventListener('click', openStatsModal);
@@ -383,6 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // initial UI
   showScreen(splash);
 
-  // try flush once at startup in case previous events exist
+  // try flush pending events once after load (short delay)
   setTimeout(flushPending, 1500);
 });
