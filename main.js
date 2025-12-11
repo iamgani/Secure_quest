@@ -5,6 +5,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('startBtn');
   const playerNameInput = document.getElementById('playerName');
 
+  const statsBtn = document.getElementById('statsBtn');
+  const statsBtnGame = document.getElementById('statsBtnGame');
+  const statsBtnSuccess = document.getElementById('statsBtnSuccess');
+  const statsBtnFail = document.getElementById('statsBtnFail');
+
+  const modal = document.getElementById('statsModal');
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const modalStats = document.getElementById('modalStats');
+  const modalLeaderboard = document.getElementById('modalLeaderboard');
+  const closeStats = document.getElementById('closeStats');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+
   const game = document.getElementById('game');
   const timerEl = document.getElementById('timer');
   const stageEl = document.getElementById('stage');
@@ -112,6 +124,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // storage keys & helpers for stats
+  const STATS_KEY = 'secureQuestStats';
+  const RANKING_KEY = 'secureQuestRanking';
+
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      if (!raw) return { totalPlays: 0, totalCompletions: 0, totalRetries: 0, lastPlayer: null, lastPlayedAt: null };
+      return JSON.parse(raw);
+    } catch (e) {
+      console.warn('loadStats', e);
+      return { totalPlays: 0, totalCompletions: 0, totalRetries: 0, lastPlayer: null, lastPlayedAt: null };
+    }
+  }
+  function saveStats(s) {
+    try {
+      localStorage.setItem(STATS_KEY, JSON.stringify(s));
+    } catch (e) { console.warn('saveStats', e); }
+  }
+
   // helpers
   function show(el) { if (el) el.classList.remove('hidden'); }
   function hide(el) { if (el) el.classList.add('hidden'); }
@@ -200,13 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function saveAndRenderRanking(name, timeSec) {
     try {
-      const raw = localStorage.getItem('secureQuestRanking') || '[]';
+      const raw = localStorage.getItem(RANKING_KEY) || '[]';
       const list = JSON.parse(raw);
       list.push({ name, time: timeSec });
       list.sort((a,b)=>a.time-b.time);
       const top = list.slice(0,5);
-      localStorage.setItem('secureQuestRanking', JSON.stringify(top));
+      localStorage.setItem(RANKING_KEY, JSON.stringify(top));
       renderRanking(top);
+      renderModalLeaderboard(top);
     } catch (e) { console.warn(e); }
   }
 
@@ -221,8 +254,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function renderModalLeaderboard(list) {
+    if (!modalLeaderboard) return;
+    modalLeaderboard.innerHTML = '<h3>Leaderboard</h3>';
+    if (!list || !list.length) { modalLeaderboard.innerHTML += '<div class="small-muted">No records yet</div>'; return; }
+    const ul = document.createElement('div');
+    ul.className = 'leaderboard-list';
+    list.forEach((r, idx) => {
+      const item = document.createElement('div');
+      item.className = 'leader-item';
+      item.textContent = `${idx+1}. ${r.name} — ${r.time}s`;
+      ul.appendChild(item);
+    });
+    modalLeaderboard.appendChild(ul);
+  }
+
+  function renderModalStatsPanel() {
+    const s = loadStats();
+    if (!modalStats) return;
+    const lastPlayed = s.lastPlayedAt ? new Date(s.lastPlayedAt).toLocaleString() : '—';
+    modalStats.innerHTML = `
+      <div class="stats-row"><div class="stat-label">Total Plays</div><div class="stat-value">${s.totalPlays}</div></div>
+      <div class="stats-row"><div class="stat-label">Total Completed</div><div class="stat-value">${s.totalCompletions}</div></div>
+      <div class="stats-row"><div class="stat-label">Total Retries</div><div class="stat-value">${s.totalRetries}</div></div>
+      <div class="stats-row"><div class="stat-label">Last Player</div><div class="stat-value">${s.lastPlayer ? s.lastPlayer : '—'}</div></div>
+      <div class="stats-row"><div class="stat-label">Last Played</div><div class="stat-value">${lastPlayed}</div></div>
+    `;
+  }
+
+  function openStatsModal() {
+    renderModalStatsPanel();
+    const ranking = JSON.parse(localStorage.getItem(RANKING_KEY) || '[]');
+    renderModalLeaderboard(ranking);
+    show(modal);
+    const closeBtn = closeStats || modalCloseBtn;
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeStatsModal() {
+    hide(modal);
+  }
+
   function winGame() {
     stopTimer();
+    // update stats
+    const stats = loadStats();
+    stats.totalCompletions = (stats.totalCompletions || 0) + 1;
+    saveStats(stats);
+
     if (finalTime) finalTime.textContent = `${playerName} completed in ${elapsed}s`;
     try { if (sfxSuccess) { sfxSuccess.currentTime = 0; sfxSuccess.play(); } } catch (e) {}
     runBlast();
@@ -258,6 +337,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!name) { if (playerNameInput) playerNameInput.focus(); return; }
     playerName = name;
 
+    // update stats: total plays + last player
+    const stats = loadStats();
+    stats.totalPlays = (stats.totalPlays || 0) + 1;
+    stats.lastPlayer = playerName;
+    stats.lastPlayedAt = Date.now();
+    saveStats(stats);
+
     // Start background audio on gesture
     try {
       if (bgMusic) { bgMusic.volume = 0.25; bgMusic.currentTime = 0; bgMusic.play().catch(()=>{}); }
@@ -277,8 +363,32 @@ document.addEventListener('DOMContentLoaded', () => {
     playerNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startHandler(); });
   }
 
-  if (retryBtn) retryBtn.addEventListener('click', ()=> location.reload());
-  if (failRetry) failRetry.addEventListener('click', ()=> location.reload());
+  // Stats modal triggers — only show the modal (no toggle)
+  if (statsBtn) statsBtn.addEventListener('click', openStatsModal);
+  if (statsBtnGame) statsBtnGame.addEventListener('click', openStatsModal);
+  if (statsBtnSuccess) statsBtnSuccess.addEventListener('click', openStatsModal);
+  if (statsBtnFail) statsBtnFail.addEventListener('click', openStatsModal);
+
+  // Close handlers
+  if (closeStats) closeStats.addEventListener('click', closeStatsModal);
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeStatsModal);
+  if (modalBackdrop) modalBackdrop.addEventListener('click', closeStatsModal);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStatsModal(); });
+
+  // When user clicks Play Again — count as a retry attempt and reload for a fresh start
+  if (retryBtn) retryBtn.addEventListener('click', ()=> {
+    const stats = loadStats();
+    stats.totalRetries = (stats.totalRetries || 0) + 1;
+    saveStats(stats);
+    location.reload();
+  });
+
+  if (failRetry) failRetry.addEventListener('click', ()=> {
+    const stats = loadStats();
+    stats.totalRetries = (stats.totalRetries || 0) + 1;
+    saveStats(stats);
+    location.reload();
+  });
 
   if (shareBtn) {
     shareBtn.addEventListener('click', (e) => {
@@ -293,10 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initial ranking render
+  // Initial ranking & stats preparation (modal will render fresh when opened)
   try {
-    const stored = JSON.parse(localStorage.getItem('secureQuestRanking') || '[]');
-    renderRanking(stored);
+    const stored = JSON.parse(localStorage.getItem(RANKING_KEY) || '[]');
+    renderModalLeaderboard(stored);
   } catch (e) {}
 
   // Start on splash
