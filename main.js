@@ -1,5 +1,8 @@
-// main.js — mobile-first, A=correct for all stages, notes shown after success, final summary, PWA-friendly
+// main.js — client updated to use global server API at /api/*
 document.addEventListener('DOMContentLoaded', () => {
+  // API base — change to your server's origin if client served separately
+  const API_BASE = ''; // '' = same origin, or e.g. 'https://secure-quest.example.com'
+
   // DOM refs
   const splash = document.getElementById('splash');
   const startBtn = document.getElementById('startBtn');
@@ -60,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stage4: 'assets/desk_area.png'
   };
 
-  // Stages (A = correct)
+  // Stages config (unchanged)
   const STAGES = {
     1: {
       label: 'Entrance',
@@ -124,27 +127,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // storage keys & helpers for stats
-  const STATS_KEY = 'secureQuestStats';
-  const RANKING_KEY = 'secureQuestRanking';
+  // Local fallback keys (if server unreachable)
+  const LOCAL_STATS_KEY = 'secureQuestStats_local';
+  const LOCAL_RANKING_KEY = 'secureQuestRanking_local';
 
-  function loadStats() {
+  // helpers for fallback local storage (only used if API fails)
+  function loadLocalStats() {
     try {
-      const raw = localStorage.getItem(STATS_KEY);
-      if (!raw) return { totalPlays: 0, totalCompletions: 0, totalRetries: 0, lastPlayer: null, lastPlayedAt: null };
-      return JSON.parse(raw);
+      return JSON.parse(localStorage.getItem(LOCAL_STATS_KEY) || '{"totalPlays":0,"totalCompletions":0,"totalRetries":0,"lastPlayer":null,"lastPlayedAt":null}');
     } catch (e) {
-      console.warn('loadStats', e);
-      return { totalPlays: 0, totalCompletions: 0, totalRetries: 0, lastPlayer: null, lastPlayedAt: null };
+      return { totalPlays:0, totalCompletions:0, totalRetries:0, lastPlayer:null, lastPlayedAt:null };
     }
   }
-  function saveStats(s) {
-    try {
-      localStorage.setItem(STATS_KEY, JSON.stringify(s));
-    } catch (e) { console.warn('saveStats', e); }
+  function saveLocalStats(s) {
+    try { localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(s)); } catch(e) {}
   }
 
-  // helpers
+  // UI helpers
   function show(el) { if (el) el.classList.remove('hidden'); }
   function hide(el) { if (el) el.classList.add('hidden'); }
 
@@ -230,37 +229,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function saveAndRenderRanking(name, timeSec) {
+  // ---- Server interactions ----
+
+  async function apiGet(path) {
     try {
-      const raw = localStorage.getItem(RANKING_KEY) || '[]';
-      const list = JSON.parse(raw);
-      list.push({ name, time: timeSec });
-      list.sort((a,b)=>a.time-b.time);
-      const top = list.slice(0,5);
-      localStorage.setItem(RANKING_KEY, JSON.stringify(top));
-      renderRanking(top);
-      renderModalLeaderboard(top);
-    } catch (e) { console.warn(e); }
+      const res = await fetch(API_BASE + path, { method: 'GET', credentials: 'same-origin' });
+      if (!res.ok) throw new Error('bad response');
+      return await res.json();
+    } catch (e) {
+      console.warn('apiGet failed', path, e);
+      return null;
+    }
+  }
+  async function apiPost(path, body) {
+    try {
+      const res = await fetch(API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        credentials: 'same-origin'
+      });
+      if (!res.ok) throw new Error('bad response');
+      return await res.json();
+    } catch (e) {
+      console.warn('apiPost failed', path, e);
+      return null;
+    }
   }
 
-  function renderRanking(list) {
-    if (!rankingEl) return;
-    rankingEl.innerHTML = '<h3>Top Players</h3>';
-    if (!list || !list.length) { rankingEl.innerHTML += '<div>No records yet</div>'; return; }
-    list.forEach(r=>{
-      const row = document.createElement('div');
-      row.textContent = `${r.name} — ${r.time}s`;
-      rankingEl.appendChild(row);
-    });
+  // update UI modal with server stats; falls back to local storage if server unreachable
+  async function renderModalStatsPanel() {
+    let stats = await apiGet('/api/stats');
+    if (!stats) stats = loadLocalStats();
+    if (!modalStats) return;
+    const lastPlayed = stats.lastPlayedAt ? new Date(stats.lastPlayedAt).toLocaleString() : '—';
+    modalStats.innerHTML = `
+      <div class="stats-row"><div class="stat-label">Total Plays</div><div class="stat-value">${stats.totalPlays}</div></div>
+      <div class="stats-row"><div class="stat-label">Total Completed</div><div class="stat-value">${stats.totalCompletions}</div></div>
+      <div class="stats-row"><div class="stat-label">Total Retries</div><div class="stat-value">${stats.totalRetries}</div></div>
+      <div class="stats-row"><div class="stat-label">Last Player</div><div class="stat-value">${stats.lastPlayer ? stats.lastPlayer : '—'}</div></div>
+      <div class="stats-row"><div class="stat-label">Last Played</div><div class="stat-value">${lastPlayed}</div></div>
+    `;
   }
 
-  function renderModalLeaderboard(list) {
+  async function renderModalLeaderboard() {
+    let top = await apiGet('/api/leaderboard?limit=5');
+    if (!top) {
+      try { top = JSON.parse(localStorage.getItem(LOCAL_RANKING_KEY) || '[]'); } catch(e) { top = []; }
+    }
     if (!modalLeaderboard) return;
     modalLeaderboard.innerHTML = '<h3>Leaderboard</h3>';
-    if (!list || !list.length) { modalLeaderboard.innerHTML += '<div class="small-muted">No records yet</div>'; return; }
+    if (!top || !top.length) { modalLeaderboard.innerHTML += '<div class="small-muted">No records yet</div>'; return; }
     const ul = document.createElement('div');
     ul.className = 'leaderboard-list';
-    list.forEach((r, idx) => {
+    top.forEach((r, idx) => {
       const item = document.createElement('div');
       item.className = 'leader-item';
       item.textContent = `${idx+1}. ${r.name} — ${r.time}s`;
@@ -269,80 +291,32 @@ document.addEventListener('DOMContentLoaded', () => {
     modalLeaderboard.appendChild(ul);
   }
 
-  function renderModalStatsPanel() {
-    const s = loadStats();
-    if (!modalStats) return;
-    const lastPlayed = s.lastPlayedAt ? new Date(s.lastPlayedAt).toLocaleString() : '—';
-    modalStats.innerHTML = `
-      <div class="stats-row"><div class="stat-label">Total Plays</div><div class="stat-value">${s.totalPlays}</div></div>
-      <div class="stats-row"><div class="stat-label">Total Completed</div><div class="stat-value">${s.totalCompletions}</div></div>
-      <div class="stats-row"><div class="stat-label">Total Retries</div><div class="stat-value">${s.totalRetries}</div></div>
-      <div class="stats-row"><div class="stat-label">Last Player</div><div class="stat-value">${s.lastPlayer ? s.lastPlayer : '—'}</div></div>
-      <div class="stats-row"><div class="stat-label">Last Played</div><div class="stat-value">${lastPlayed}</div></div>
-    `;
-  }
-
   function openStatsModal() {
     renderModalStatsPanel();
-    const ranking = JSON.parse(localStorage.getItem(RANKING_KEY) || '[]');
-    renderModalLeaderboard(ranking);
+    renderModalLeaderboard();
     show(modal);
     const closeBtn = closeStats || modalCloseBtn;
     if (closeBtn) closeBtn.focus();
   }
+  function closeStatsModal() { hide(modal); }
 
-  function closeStatsModal() {
-    hide(modal);
-  }
+  // ---- game end / start actions that call server endpoints ----
 
-  function winGame() {
-    stopTimer();
-    // update stats
-    const stats = loadStats();
-    stats.totalCompletions = (stats.totalCompletions || 0) + 1;
-    saveStats(stats);
-
-    if (finalTime) finalTime.textContent = `${playerName} completed in ${elapsed}s`;
-    try { if (sfxSuccess) { sfxSuccess.currentTime = 0; sfxSuccess.play(); } } catch (e) {}
-    runBlast();
-    saveAndRenderRanking(playerName, elapsed);
-
-    if (solutionsSummary) {
-      solutionsSummary.innerHTML = `
-        <h4>Solutions provided by Honeywell's in-house team</h4>
-        <p>Our in-house team delivers an integrated suite of access solutions tailored for enterprise security needs:</p>
-        <ul>
-          <li><strong>Card-based access</strong> with swap/tamper detection and credential validation for secure entrances.</li>
-          <li><strong>Camera-based facial recognition</strong> with liveness detection and enterprise monitoring.</li>
-          <li><strong>Contactless iris scanning</strong> for high-security gates with very low false-accept rates.</li>
-          <li><strong>Fingerprint/thumb authentication</strong> for desk-level access and equipment unlocking with audit trails.</li>
-          <li><strong>System integration & monitoring</strong> — centralized logs, audit reporting and easy enterprise integration.</li>
-        </ul>
-        <p>These solutions have been implemented and supported by Honeywell for multiple customers across various industries.</p>
-      `;
-    }
-
-    showScreen(successScreen);
-  }
-
-  function failGame(msg) {
-    stopTimer();
-    if (failReason) failReason.textContent = msg;
-    showScreen(failScreen);
-  }
-
-  // Start handler - plays music on user gesture
-  function startHandler() {
+  async function startHandler() {
     const name = playerNameInput && playerNameInput.value ? playerNameInput.value.trim() : '';
     if (!name) { if (playerNameInput) playerNameInput.focus(); return; }
     playerName = name;
 
-    // update stats: total plays + last player
-    const stats = loadStats();
-    stats.totalPlays = (stats.totalPlays || 0) + 1;
-    stats.lastPlayer = playerName;
-    stats.lastPlayedAt = Date.now();
-    saveStats(stats);
+    // call server to increment global plays.
+    const res = await apiPost('/api/play', { name: playerName });
+    if (!res) {
+      // fallback: persist locally
+      const s = loadLocalStats();
+      s.totalPlays = (s.totalPlays || 0) + 1;
+      s.lastPlayer = playerName;
+      s.lastPlayedAt = Date.now();
+      saveLocalStats(s);
+    }
 
     // Start background audio on gesture
     try {
@@ -354,7 +328,52 @@ document.addEventListener('DOMContentLoaded', () => {
     startTimer();
   }
 
-  // Attach start listeners (click + touch + enter)
+  async function winGame() {
+    stopTimer();
+    // call server to increment completions
+    const res = await apiPost('/api/complete', {});
+    if (!res) {
+      const s = loadLocalStats();
+      s.totalCompletions = (s.totalCompletions || 0) + 1;
+      saveLocalStats(s);
+    }
+
+    if (finalTime) finalTime.textContent = `${playerName} completed in ${elapsed}s`;
+    try { if (sfxSuccess) { sfxSuccess.currentTime = 0; sfxSuccess.play(); } } catch (e) {}
+    runBlast();
+
+    // save score to server leaderboard
+    const saved = await apiPost('/api/score', { name: playerName, time: elapsed });
+    if (!saved) {
+      // fallback: local leaderboard
+      try {
+        const raw = JSON.parse(localStorage.getItem(LOCAL_RANKING_KEY) || '[]');
+        raw.push({ name: playerName, time: elapsed });
+        raw.sort((a,b)=>a.time-b.time);
+        localStorage.setItem(LOCAL_RANKING_KEY, JSON.stringify(raw.slice(0, 50)));
+      } catch (e) {}
+    }
+
+    showScreen(successScreen);
+  }
+
+  async function failGame(msg) {
+    stopTimer();
+    // increment retry on server (since fail->retry is a retry)
+    try {
+      const res = await apiPost('/api/retry', {});
+      if (!res) {
+        const s = loadLocalStats();
+        s.totalRetries = (s.totalRetries || 0) + 1;
+        saveLocalStats(s);
+      }
+    } catch (e) { /* ignore */ }
+
+    if (failReason) failReason.textContent = msg;
+    showScreen(failScreen);
+  }
+
+  // Event listeners attach (start, share, retry etc.)
   if (startBtn) {
     startBtn.addEventListener('click', startHandler);
     startBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startHandler(); }, { passive: false });
@@ -363,30 +382,13 @@ document.addEventListener('DOMContentLoaded', () => {
     playerNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startHandler(); });
   }
 
-  // Stats modal triggers — only show the modal (no toggle)
-  if (statsBtn) statsBtn.addEventListener('click', openStatsModal);
-  if (statsBtnGame) statsBtnGame.addEventListener('click', openStatsModal);
-  if (statsBtnSuccess) statsBtnSuccess.addEventListener('click', openStatsModal);
-  if (statsBtnFail) statsBtnFail.addEventListener('click', openStatsModal);
-
-  // Close handlers
-  if (closeStats) closeStats.addEventListener('click', closeStatsModal);
-  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeStatsModal);
-  if (modalBackdrop) modalBackdrop.addEventListener('click', closeStatsModal);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStatsModal(); });
-
-  // When user clicks Play Again — count as a retry attempt and reload for a fresh start
   if (retryBtn) retryBtn.addEventListener('click', ()=> {
-    const stats = loadStats();
-    stats.totalRetries = (stats.totalRetries || 0) + 1;
-    saveStats(stats);
+    // count as retry
+    apiPost('/api/retry', {}); // fire-and-forget; fallback not critical here
     location.reload();
   });
-
   if (failRetry) failRetry.addEventListener('click', ()=> {
-    const stats = loadStats();
-    stats.totalRetries = (stats.totalRetries || 0) + 1;
-    saveStats(stats);
+    apiPost('/api/retry', {});
     location.reload();
   });
 
@@ -397,18 +399,22 @@ document.addEventListener('DOMContentLoaded', () => {
       if (navigator.share) {
         navigator.share({ title: 'Play Secure Quest', text: 'Try this security access game', url }).catch(()=>{});
       } else {
-        // fallback: copy to clipboard
         navigator.clipboard && navigator.clipboard.writeText(url).then(()=> alert('Link copied to clipboard'));
       }
     });
   }
 
-  // Initial ranking & stats preparation (modal will render fresh when opened)
-  try {
-    const stored = JSON.parse(localStorage.getItem(RANKING_KEY) || '[]');
-    renderModalLeaderboard(stored);
-  } catch (e) {}
+  // Stats modal triggers (show only)
+  if (statsBtn) statsBtn.addEventListener('click', openStatsModal);
+  if (statsBtnGame) statsBtnGame.addEventListener('click', openStatsModal);
+  if (statsBtnSuccess) statsBtnSuccess.addEventListener('click', openStatsModal);
+  if (statsBtnFail) statsBtnFail.addEventListener('click', openStatsModal);
 
-  // Start on splash
+  if (closeStats) closeStats.addEventListener('click', closeStatsModal);
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeStatsModal);
+  if (modalBackdrop) modalBackdrop.addEventListener('click', closeStatsModal);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStatsModal(); });
+
+  // initial UI state
   showScreen(splash);
 });

@@ -1,0 +1,17 @@
+{
+  "name": "secure-quest-server",
+  "version": "1.0.0",
+  "description": "Tiny API to store global stats and leaderboard for Secure Quest",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
