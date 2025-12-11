@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
   <title>Secure Quest</title>
 
-  <!-- PWA manifest -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0b84ff">
 
-  <!-- Preload critical assets -->
+  <!-- preload critical assets -->
+  <link rel="preload" href="assets/interface.png" as="image">
   <link rel="preload" href="assets/building_real.png" as="image">
   <link rel="preload" href="assets/security_area.png" as="image">
   <link rel="preload" href="assets/iris_door.png" as="image">
   <link rel="preload" href="assets/desk_area.png" as="image">
-  <link rel="preload" href="assets/interface.png" as="image">
   <link rel="preload" href="assets/music_bg.mp3" as="audio">
 
   <link rel="stylesheet" href="styles.css">
@@ -22,22 +21,22 @@
 <body>
   <div id="app">
 
-<!-- SPLASH -->
-<main id="splash" class="screen">
-  <img src="assets/interface.png" alt="Secure Quest" class="splash-img" />
+    <!-- SPLASH -->
+    <main id="splash" class="screen">
+      <img src="assets/interface.png" alt="Secure Quest" class="splash-img" />
 
-  <div class="splash-body">
-    <h1>Access Solution</h1>
-    <p class="muted">Enter a name and guide the user through 4 access checks.</p>
+      <div class="splash-body">
+        <h1>Access Solution</h1>
+        <p class="muted">Enter a name and guide the user through 4 access checks.</p>
 
-    <input id="playerName" type="text" placeholder="Enter your name" autocomplete="name" />
+        <input id="playerName" type="text" placeholder="Enter your name" autocomplete="name" />
 
-    <div class="splash-actions">
-      <button id="startBtn" class="primary large-btn">Start the Mission</button>
-      <button id="statsBtn" class="primary small-btn" aria-haspopup="dialog">Stats</button>
-    </div>
-  </div>
-</main>
+        <div class="splash-actions">
+          <button id="startBtn" class="primary large-btn">Start the Mission</button>
+          <button id="statsBtn" class="primary small-btn" aria-haspopup="dialog">Stats</button>
+        </div>
+      </div>
+    </main>
 
     <!-- GAME -->
     <section id="game" class="screen hidden" aria-hidden="true">
@@ -73,6 +72,7 @@
       <h2>Access Granted!</h2>
       <p id="finalTime" class="final-time"></p>
 
+      <!-- solutions summary (long content) -->
       <div id="solutionsSummary" class="solutions-summary" aria-live="polite"></div>
 
       <div id="blast" class="blast" aria-hidden="true"></div>
@@ -114,14 +114,18 @@
     </div>
   </div>
 
-  <!-- Audio elements (optional) -->
+  <!-- Audio -->
   <audio id="bgMusic" src="assets/music_bg.mp3" loop preload="auto" aria-hidden="true"></audio>
   <audio id="sfxSuccess" src="assets/sfx_success.mp3" preload="auto" aria-hidden="true"></audio>
   <audio id="sfxFail" src="assets/sfx_fail.mp3" preload="auto" aria-hidden="true"></audio>
 
+  <!-- simple config where you set your API base URL -->
+  <script src="config.js"></script>
+
+  <!-- main app -->
   <script src="main.js" defer></script>
 
-  <!-- service worker registration -->
+  <!-- service worker -->
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(()=>{ /* ignore */ });
