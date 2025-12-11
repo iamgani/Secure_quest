@@ -11,8 +11,17 @@
 html,body{height:100%;margin:0;background:var(--bg);color:#fff}
 #app{max-width:480px;margin:0 auto;padding:12px}
 
-/* Screen */
-.screen{display:flex;flex-direction:column;align-items:center;gap:12px}
+/* Screen - make screens scrollable on mobile and desktop */
+.screen{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  max-height:100vh;
+  overflow:auto;
+  -webkit-overflow-scrolling: touch; /* smooth ios scrolling */
+  padding-bottom:18px;
+}
 .hidden{display:none!important}
 
 /* Splash */
@@ -34,7 +43,7 @@ input#playerName{width:92%;padding:14px;border-radius:12px;border:0;font-size:16
 .topbar-actions { display:flex; gap:8px; }
 
 /* Scene */
-.scene{width:100%;position:relative;border-radius:12px;overflow:hidden;background:var(--card);padding:8px;min-height:260px}
+.scene{width:100%;position:relative;border-radius:12px;overflow:hidden;background:var(--card);padding:8px;min-height:220px}
 .scene-bg{width:100%;height:100%;object-fit:cover;border-radius:8px;opacity:0.98}
 
 /* Door */
@@ -49,14 +58,26 @@ input#playerName{width:92%;padding:14px;border-radius:12px;border:0;font-size:16
 /* Controls */
 .controls{width:100%;padding-top:6px}
 .message{min-height:44px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.45)}
-.notes{margin-top:8px;width:100%;background:rgba(255,255,255,0.03);Padding:10px;border-radius:8px;color:#fff;min-height:64px;font-size:14px;line-height:1.3}
+.notes{margin-top:8px;width:100%;background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;color:#fff;min-height:64px;font-size:14px;line-height:1.3}
 
 /* Buttons row */
 .btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
 .btn-row button{flex:1 1 48%;padding:14px;border-radius:12px;border:0;background:#eef3ff;color:#111;font-weight:800;font-size:15px;touch-action:manipulation}
 
 /* Success screen extras */
-.solutions-summary{width:100%;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border-radius:10px;padding:12px;margin:8px 0;color:#fff;text-align:left}
+/* make solutions summary visible and fluid on mobile */
+.solutions-summary{
+  width:100%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));
+  border-radius:10px;
+  padding:12px;
+  margin:8px 0;
+  color:#fff;
+  text-align:left;
+  overflow:visible;
+  word-break:break-word;
+  font-size:14px;
+}
 .solutions-summary h4{margin:0 0 8px 0}
 
 /* Blast & ranking */
@@ -68,43 +89,14 @@ input#playerName{width:92%;padding:14px;border-radius:12px;border:0;font-size:16
   #app{max-width:720px}
   .bg-img{height:260px}
 }
+
 /* New splash layout */
-#splash {
-  width: 100%;
-  text-align: center;
-}
-
-.splash-img {
-  width: 100%;
-  height: auto;
-  max-height: 260px;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto 12px auto;
-}
-
-.splash-body {
-  padding: 0 16px;
-}
-
-.splash-body h1 {
-  margin-top: 6px;
-  margin-bottom: 8px;
-  font-size: 22px;
-}
-
-.splash-body .muted {
-  margin-bottom: 12px;
-  font-size: 14px;
-  color: #9fb3cc;
-}
-
-#playerName {
-  width: 100%;
-  margin-top: 6px;
-  margin-bottom: 12px;
-}
-
+#splash { width: 100%; text-align: center; }
+.splash-img { width: 100%; height: auto; max-height: 260px; object-fit: contain; display: block; margin: 0 auto 12px auto; }
+.splash-body { padding: 0 16px; }
+.splash-body h1 { margin-top: 6px; margin-bottom: 8px; font-size: 22px; }
+.splash-body .muted { margin-bottom: 12px; font-size: 14px; color: #9fb3cc; }
+#playerName { width: 100%; margin-top: 6px; margin-bottom: 12px; }
 .splash-actions { display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom: 8px; }
 
 /* Modal */
@@ -115,10 +107,10 @@ input#playerName{width:92%;padding:14px;border-radius:12px;border:0;font-size:16
 .modal-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
 .modal-header h3 { margin:0; font-size:18px; }
 .modal-close { background:transparent; color:#fff; border:0; font-size:18px; padding:6px; border-radius:6px; cursor:pointer; }
-.modal-body { margin-top:12px; max-height:60vh; overflow:auto; }
+.modal-body { margin-top:12px; max-height:60vh; overflow:auto; -webkit-overflow-scrolling: touch; }
 .modal-footer { margin-top:12px; display:flex; justify-content:flex-end; gap:8px; }
 
-/* Stats & leaderboard styles */
+/* Stats styles */
 .splash-leaderboard, .splash-stats { background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px; text-align: left; color: #fff; }
 .splash-leaderboard h3 { margin: 0 0 8px 0; }
 .splash-stats .stats-row { display:flex; justify-content:space-between; padding: 6px 0; border-bottom: 1px dashed rgba(255,255,255,0.03); }
@@ -126,7 +118,6 @@ input#playerName{width:92%;padding:14px;border-radius:12px;border:0;font-size:16
 .stat-label { color: var(--muted); font-size: 13px; }
 .stat-value { font-weight: 800; }
 .small-muted { color: var(--muted); font-size: 13px; }
-
 .leaderboard-list { display:flex; flex-direction:column; gap:6px; }
 .leader-item { font-weight:700; font-size:14px; }
 
