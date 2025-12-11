@@ -1,9 +1,10 @@
-// main.js — client updated to use global server API at /api/*
+// main.js — client with reliable server sync + persistent pending queue
 document.addEventListener('DOMContentLoaded', () => {
-  // API base — change to your server's origin if client served separately
-  const API_BASE = ''; // '' = same origin, or e.g. 'https://secure-quest.example.com'
+  // === CONFIG: set this to your deployed API origin (no trailing slash) ===
+  // Example: const API_BASE = 'https://secure-quest-api.example.com'
+  const API_BASE = 'https://REPLACE_WITH_YOUR_SERVER_URL';
 
-  // DOM refs
+  // === DOM refs ===
   const splash = document.getElementById('splash');
   const startBtn = document.getElementById('startBtn');
   const playerNameInput = document.getElementById('playerName');
@@ -55,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let timerInt = null;
   let elapsed = 0;
 
-  // backgrounds
+  // static assets
   const assets = {
     stage1: 'assets/building_real.png',
     stage2: 'assets/security_area.png',
@@ -63,87 +64,108 @@ document.addEventListener('DOMContentLoaded', () => {
     stage4: 'assets/desk_area.png'
   };
 
-  // Stages config (unchanged)
+  // stages config (same as before)
   const STAGES = {
-    1: {
-      label: 'Entrance',
-      bg: assets.stage1,
-      prompt: 'At the building entrance, which credential do you present to the attendant?',
-      choices: [
-        { label: 'A. Place your thumb on a reader', success: false },
-        { label: 'B. Show a selfie from your phone', success: false },
-        { label: 'C. Present your Employee ID card (swapped card allowed)', success: true },
-        { label: 'D. Provide an iris image', success: false }
-      ],
-      note: `<strong>Requirement:</strong> Secure card-based entry with swap detection and credential validation.<br>
-             <strong>How Honeywell helps:</strong> Honeywell's ID-card access platforms detect tampering and swaps, validate credentials and integrate logs for audit — proven across multiple customer sites.`,
-      failDoesExit: false,
-      failMsg: 'Wrong item — guard still lets you inside but marks you suspicious.'
-    },
-    2: {
-      label: 'Security Area',
-      bg: assets.stage2,
-      prompt: 'A camera asks for a live facial match — what do you present to the camera?',
-      choices: [
-        { label: 'A. Look directly into the camera for a live face match', success: true },
-        { label: 'B. Hold up your ID card to the camera', success: false },
-        { label: 'C. Show your thumb to the camera', success: false },
-        { label: 'D. Show a printed eye photo', success: false }
-      ],
-      note: `<strong>Requirement:</strong> Liveness and face-matching resistant to spoof attempts and securely logged.<br>
-             <strong>How Honeywell helps:</strong> Honeywell's facial recognition integrates liveness checks with enterprise monitoring, delivering accurate verification.`,
-      failDoesExit: true,
-      failMsg: 'Camera mismatch — you are escorted out.'
-    },
-    3: {
-      label: 'Iris Gate',
-      bg: assets.stage3,
-      prompt: 'The inner gate requires a high-security biometric; which do you present?',
-      choices: [
-        { label: 'A. Step in for a face scan', success: false },
-        { label: 'B. Present an iris/eye scan to the reader', success: true  },
-        { label: 'C. Swipe your ID card', success: false },
-        { label: 'D. Try thumb reader input', success: false }
-      ],
-      note: `<strong>Requirement:</strong> Fast, contactless iris recognition for high-security gate control with low false accepts.<br>
-             <strong>How Honeywell helps:</strong> Honeywell deploys high-accuracy iris readers integrated with access control systems to secure sensitive entry points.`,
-      failDoesExit: true,
-      failMsg: 'Wrong biometric — access denied.'
-    },
-    4: {
-      label: 'Desk Access',
-      bg: assets.stage4,
-      prompt: 'At the desk terminal, which method grants local device or desk access?',
-      choices: [
-        { label: 'A. Provide an iris image', success: false  },
-        { label: 'B. Show your face to a nearby camera', success: false },
-        { label: 'C. Swipe or present an ID card', success: false },
-        { label: 'D. Press your thumb on the fingerprint sensor', success: true }
-      ],
-      note: `<strong>Requirement:</strong> Reliable fingerprint/thumb authentication for desk-level access and equipment unlocking.<br>
-             <strong>How Honeywell helps:</strong> Honeywell's fingerprint-enabled readers provide dependable desk and device access with audit trails.`,
-      failDoesExit: true,
-      failMsg: 'Wrong access method — escorted out.'
-    }
+    1: { label: 'Entrance', bg: assets.stage1, prompt: 'At the building entrance, which credential do you present to the attendant?', choices: [
+      { label: 'A. Place your thumb on a reader', success: false },
+      { label: 'B. Show a selfie from your phone', success: false },
+      { label: 'C. Present your Employee ID card (swapped card allowed)', success: true },
+      { label: 'D. Provide an iris image', success: false }
+    ], note: `<strong>Requirement:</strong> Secure card-based entry with swap detection and credential validation.`, failDoesExit: false, failMsg: 'Wrong item — guard still lets you inside but marks you suspicious.' },
+    2: { label: 'Security Area', bg: assets.stage2, prompt: 'A camera asks for a live facial match — what do you present to the camera?', choices: [
+      { label: 'A. Look directly into the camera for a live face match', success: true },
+      { label: 'B. Hold up your ID card to the camera', success: false },
+      { label: 'C. Show your thumb to the camera', success: false },
+      { label: 'D. Show a printed eye photo', success: false }
+    ], note: `<strong>Requirement:</strong> Liveness and face-matching checks.`, failDoesExit: true, failMsg: 'Camera mismatch — you are escorted out.' },
+    3: { label: 'Iris Gate', bg: assets.stage3, prompt: 'The inner gate requires a high-security biometric; which do you present?', choices: [
+      { label: 'A. Step in for a face scan', success: false },
+      { label: 'B. Present an iris/eye scan to the reader', success: true  },
+      { label: 'C. Swipe your ID card', success: false },
+      { label: 'D. Try thumb reader input', success: false }
+    ], note: `<strong>Requirement:</strong> Iris recognition.`, failDoesExit: true, failMsg: 'Wrong biometric — access denied.' },
+    4: { label: 'Desk Access', bg: assets.stage4, prompt: 'At the desk terminal, which method grants local device or desk access?', choices: [
+      { label: 'A. Provide an iris image', success: false  },
+      { label: 'B. Show your face to a nearby camera', success: false },
+      { label: 'C. Swipe or present an ID card', success: false },
+      { label: 'D. Press your thumb on the fingerprint sensor', success: true }
+    ], note: `<strong>Requirement:</strong> Fingerprint authentication.`, failDoesExit: true, failMsg: 'Wrong access method — escorted out.' }
   };
 
-  // Local fallback keys (if server unreachable)
-  const LOCAL_STATS_KEY = 'secureQuestStats_local';
-  const LOCAL_RANKING_KEY = 'secureQuestRanking_local';
+  // pending queue key (stores events which couldn't be sent)
+  const PENDING_KEY = 'secureQuest_pendingEvents';
 
-  // helpers for fallback local storage (only used if API fails)
-  function loadLocalStats() {
+  function getPending() {
+    try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function setPending(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); } catch(e) {} }
+
+  // queue an event { type: 'play'|'retry'|'complete'|'score', payload: {...}, ts }
+  function queueEvent(evt) {
+    const list = getPending();
+    list.push(Object.assign({ ts: Date.now() }, evt));
+    setPending(list);
+  }
+
+  // POST helper: returns parsed JSON on success, null on failure
+  async function apiPost(path, body) {
+    if (!API_BASE || API_BASE.includes('REPLACE_WITH_YOUR_SERVER_URL')) {
+      console.warn('API_BASE not configured — set API_BASE to your server URL for global stats.');
+      return null;
+    }
     try {
-      return JSON.parse(localStorage.getItem(LOCAL_STATS_KEY) || '{"totalPlays":0,"totalCompletions":0,"totalRetries":0,"lastPlayer":null,"lastPlayedAt":null}');
-    } catch (e) {
-      return { totalPlays:0, totalCompletions:0, totalRetries:0, lastPlayer:null, lastPlayedAt:null };
+      const res = await fetch(API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('bad response ' + res.status);
+      return await res.json();
+    } catch (err) {
+      console.warn('apiPost failed', path, err);
+      return null;
     }
   }
-  function saveLocalStats(s) {
-    try { localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(s)); } catch(e) {}
+
+  // GET helper
+  async function apiGet(path) {
+    if (!API_BASE || API_BASE.includes('REPLACE_WITH_YOUR_SERVER_URL')) return null;
+    try {
+      const res = await fetch(API_BASE + path, { method: 'GET', credentials: 'include' });
+      if (!res.ok) throw new Error('bad response ' + res.status);
+      return await res.json();
+    } catch (err) {
+      console.warn('apiGet failed', path, err);
+      return null;
+    }
   }
 
-  // UI helpers
+  // attempt to flush pending events (FIFO). For each event, call appropriate endpoint.
+  async function flushPending() {
+    const list = getPending();
+    if (!list || !list.length) return;
+    const remaining = [];
+    for (const evt of list) {
+      let ok = null;
+      try {
+        if (evt.type === 'play') ok = await apiPost('/api/play', { name: evt.payload.name });
+        else if (evt.type === 'retry') ok = await apiPost('/api/retry', {});
+        else if (evt.type === 'complete') ok = await apiPost('/api/complete', {});
+        else if (evt.type === 'score') ok = await apiPost('/api/score', { name: evt.payload.name, time: evt.payload.time });
+      } catch (e) {
+        ok = null;
+      }
+      if (!ok) remaining.push(evt); // keep it
+    }
+    setPending(remaining);
+    // if we successfully flushed any, optionally refresh modal data
+  }
+
+  // flush periodically
+  setInterval(flushPending, 20_000); // every 20s
+
+  // --- UI helpers and game logic (unchanged flow, plus server calls) ---
   function show(el) { if (el) el.classList.remove('hidden'); }
   function hide(el) { if (el) el.classList.add('hidden'); }
 
@@ -171,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (notes) notes.innerHTML = '';
     if (door) door.classList.remove('open');
 
-    // build choices
     if (btnRow) {
       btnRow.innerHTML = '';
       s.choices.forEach(ch => {
@@ -229,38 +250,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ---- Server interactions ----
-
-  async function apiGet(path) {
-    try {
-      const res = await fetch(API_BASE + path, { method: 'GET', credentials: 'same-origin' });
-      if (!res.ok) throw new Error('bad response');
-      return await res.json();
-    } catch (e) {
-      console.warn('apiGet failed', path, e);
-      return null;
-    }
-  }
-  async function apiPost(path, body) {
-    try {
-      const res = await fetch(API_BASE + path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        credentials: 'same-origin'
-      });
-      if (!res.ok) throw new Error('bad response');
-      return await res.json();
-    } catch (e) {
-      console.warn('apiPost failed', path, e);
-      return null;
-    }
-  }
-
-  // update UI modal with server stats; falls back to local storage if server unreachable
+  // render modal stats by fetching server stats (authoritative)
   async function renderModalStatsPanel() {
     let stats = await apiGet('/api/stats');
-    if (!stats) stats = loadLocalStats();
+    if (!stats) {
+      // server unreachable — try to show pending / fallback info
+      const pending = getPending();
+      // minimal fallback display
+      stats = { totalPlays: '–', totalCompletions: '–', totalRetries: '–', lastPlayer: '–', lastPlayedAt: null };
+      if (pending && pending.length) {
+        // show how many pending events we have to be synced
+        stats._pending = pending.length;
+      }
+    }
     if (!modalStats) return;
     const lastPlayed = stats.lastPlayedAt ? new Date(stats.lastPlayedAt).toLocaleString() : '—';
     modalStats.innerHTML = `
@@ -269,19 +271,22 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="stats-row"><div class="stat-label">Total Retries</div><div class="stat-value">${stats.totalRetries}</div></div>
       <div class="stats-row"><div class="stat-label">Last Player</div><div class="stat-value">${stats.lastPlayer ? stats.lastPlayer : '—'}</div></div>
       <div class="stats-row"><div class="stat-label">Last Played</div><div class="stat-value">${lastPlayed}</div></div>
+      ${stats._pending ? `<div class="stats-row"><div class="stat-label">Pending to sync</div><div class="stat-value">${stats._pending}</div></div>` : ''}
     `;
   }
 
+  // render modal leaderboard by fetching server
   async function renderModalLeaderboard() {
     let top = await apiGet('/api/leaderboard?limit=5');
     if (!top) {
-      try { top = JSON.parse(localStorage.getItem(LOCAL_RANKING_KEY) || '[]'); } catch(e) { top = []; }
+      // no server — show pending scores if any
+      const pending = getPending().filter(e => e.type === 'score').map(e => ({ name: e.payload.name, time: e.payload.time }));
+      top = pending.slice(0,5);
     }
     if (!modalLeaderboard) return;
     modalLeaderboard.innerHTML = '<h3>Leaderboard</h3>';
     if (!top || !top.length) { modalLeaderboard.innerHTML += '<div class="small-muted">No records yet</div>'; return; }
-    const ul = document.createElement('div');
-    ul.className = 'leaderboard-list';
+    const ul = document.createElement('div'); ul.className = 'leaderboard-list';
     top.forEach((r, idx) => {
       const item = document.createElement('div');
       item.className = 'leader-item';
@@ -291,37 +296,30 @@ document.addEventListener('DOMContentLoaded', () => {
     modalLeaderboard.appendChild(ul);
   }
 
-  function openStatsModal() {
-    renderModalStatsPanel();
-    renderModalLeaderboard();
+  async function openStatsModal() {
+    // try flush first (so modal shows freshest when server available)
+    await flushPending();
+    await renderModalStatsPanel();
+    await renderModalLeaderboard();
     show(modal);
-    const closeBtn = closeStats || modalCloseBtn;
-    if (closeBtn) closeBtn.focus();
+    const closeBtn = closeStats || modalCloseBtn; if (closeBtn) closeBtn.focus();
   }
   function closeStatsModal() { hide(modal); }
 
-  // ---- game end / start actions that call server endpoints ----
-
+  // --- start/retry/complete logic with send-or-queue behavior ---
   async function startHandler() {
     const name = playerNameInput && playerNameInput.value ? playerNameInput.value.trim() : '';
     if (!name) { if (playerNameInput) playerNameInput.focus(); return; }
     playerName = name;
 
-    // call server to increment global plays.
     const res = await apiPost('/api/play', { name: playerName });
     if (!res) {
-      // fallback: persist locally
-      const s = loadLocalStats();
-      s.totalPlays = (s.totalPlays || 0) + 1;
-      s.lastPlayer = playerName;
-      s.lastPlayedAt = Date.now();
-      saveLocalStats(s);
+      // queue the event for later
+      queueEvent({ type: 'play', payload: { name: playerName } });
     }
 
-    // Start background audio on gesture
-    try {
-      if (bgMusic) { bgMusic.volume = 0.25; bgMusic.currentTime = 0; bgMusic.play().catch(()=>{}); }
-    } catch (e) {}
+    // audio play attempt
+    try { if (bgMusic) { bgMusic.volume = 0.25; bgMusic.currentTime = 0; bgMusic.play().catch(()=>{}); } } catch(e) {}
 
     showScreen(game);
     loadStage(1);
@@ -330,81 +328,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function winGame() {
     stopTimer();
-    // call server to increment completions
+
     const res = await apiPost('/api/complete', {});
-    if (!res) {
-      const s = loadLocalStats();
-      s.totalCompletions = (s.totalCompletions || 0) + 1;
-      saveLocalStats(s);
-    }
+    if (!res) queueEvent({ type: 'complete', payload: {} });
 
     if (finalTime) finalTime.textContent = `${playerName} completed in ${elapsed}s`;
     try { if (sfxSuccess) { sfxSuccess.currentTime = 0; sfxSuccess.play(); } } catch (e) {}
     runBlast();
 
-    // save score to server leaderboard
+    // submit score
     const saved = await apiPost('/api/score', { name: playerName, time: elapsed });
-    if (!saved) {
-      // fallback: local leaderboard
-      try {
-        const raw = JSON.parse(localStorage.getItem(LOCAL_RANKING_KEY) || '[]');
-        raw.push({ name: playerName, time: elapsed });
-        raw.sort((a,b)=>a.time-b.time);
-        localStorage.setItem(LOCAL_RANKING_KEY, JSON.stringify(raw.slice(0, 50)));
-      } catch (e) {}
-    }
+    if (!saved) queueEvent({ type: 'score', payload: { name: playerName, time: elapsed } });
 
     showScreen(successScreen);
   }
 
   async function failGame(msg) {
     stopTimer();
-    // increment retry on server (since fail->retry is a retry)
-    try {
-      const res = await apiPost('/api/retry', {});
-      if (!res) {
-        const s = loadLocalStats();
-        s.totalRetries = (s.totalRetries || 0) + 1;
-        saveLocalStats(s);
-      }
-    } catch (e) { /* ignore */ }
+    const res = await apiPost('/api/retry', {});
+    if (!res) queueEvent({ type: 'retry', payload: {} });
 
     if (failReason) failReason.textContent = msg;
     showScreen(failScreen);
   }
 
-  // Event listeners attach (start, share, retry etc.)
+  // attach events
   if (startBtn) {
     startBtn.addEventListener('click', startHandler);
     startBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startHandler(); }, { passive: false });
   }
-  if (playerNameInput) {
-    playerNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startHandler(); });
-  }
+  if (playerNameInput) playerNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startHandler(); });
 
-  if (retryBtn) retryBtn.addEventListener('click', ()=> {
-    // count as retry
-    apiPost('/api/retry', {}); // fire-and-forget; fallback not critical here
-    location.reload();
-  });
-  if (failRetry) failRetry.addEventListener('click', ()=> {
-    apiPost('/api/retry', {});
-    location.reload();
+  if (retryBtn) retryBtn.addEventListener('click', ()=> { queueEvent({ type: 'retry', payload: {} }); location.reload(); });
+  if (failRetry) failRetry.addEventListener('click', ()=> { queueEvent({ type: 'retry', payload: {} }); location.reload(); });
+
+  if (shareBtn) shareBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const url = location.href;
+    if (navigator.share) navigator.share({ title: 'Play Secure Quest', text: 'Try this security access game', url }).catch(()=>{});
+    else navigator.clipboard && navigator.clipboard.writeText(url).then(()=> alert('Link copied to clipboard'));
   });
 
-  if (shareBtn) {
-    shareBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const url = location.href;
-      if (navigator.share) {
-        navigator.share({ title: 'Play Secure Quest', text: 'Try this security access game', url }).catch(()=>{});
-      } else {
-        navigator.clipboard && navigator.clipboard.writeText(url).then(()=> alert('Link copied to clipboard'));
-      }
-    });
-  }
-
-  // Stats modal triggers (show only)
+  // stats button opens modal (authoritative server)
   if (statsBtn) statsBtn.addEventListener('click', openStatsModal);
   if (statsBtnGame) statsBtnGame.addEventListener('click', openStatsModal);
   if (statsBtnSuccess) statsBtnSuccess.addEventListener('click', openStatsModal);
@@ -415,6 +380,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (modalBackdrop) modalBackdrop.addEventListener('click', closeStatsModal);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStatsModal(); });
 
-  // initial UI state
+  // initial UI
   showScreen(splash);
+
+  // try flush once at startup in case previous events exist
+  setTimeout(flushPending, 1500);
 });
