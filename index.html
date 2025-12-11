@@ -32,16 +32,21 @@
 
     <input id="playerName" type="text" placeholder="Enter your name" autocomplete="name" />
 
-    <button id="startBtn" class="primary large-btn">Start the Mission</button>
+    <div class="splash-actions">
+      <button id="startBtn" class="primary large-btn">Start the Mission</button>
+      <button id="statsBtn" class="primary small-btn" aria-haspopup="dialog">Stats</button>
+    </div>
   </div>
 </main>
-
 
     <!-- GAME -->
     <section id="game" class="screen hidden" aria-hidden="true">
       <header class="topbar">
         <div id="timer">Time: 0s</div>
         <div id="stage">Stage 1/4</div>
+        <div class="topbar-actions">
+          <button id="statsBtnGame" class="small-btn">Stats</button>
+        </div>
       </header>
 
       <div class="scene">
@@ -76,6 +81,7 @@
       <div class="action-row">
         <button id="retryBtn" class="primary">Play Again</button>
         <a id="shareBtn" class="link-btn" href="#" role="button">Share</a>
+        <button id="statsBtnSuccess" class="small-btn">Stats</button>
       </div>
     </section>
 
@@ -83,8 +89,29 @@
     <section id="fail" class="screen hidden" aria-hidden="true">
       <h2>You failed access</h2>
       <p id="failReason"></p>
-      <button id="failRetry" class="primary">Retry</button>
+      <div class="fail-actions">
+        <button id="failRetry" class="primary">Retry</button>
+        <button id="statsBtnFail" class="small-btn">Stats</button>
+      </div>
     </section>
+  </div>
+
+  <!-- Stats Modal -->
+  <div id="statsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-header">
+        <h3 id="statsTitle">Game Stats & Leaderboard</h3>
+        <button id="closeStats" class="modal-close" aria-label="Close stats">✕</button>
+      </header>
+      <div class="modal-body">
+        <div id="modalStats" class="splash-stats"></div>
+        <div id="modalLeaderboard" class="splash-leaderboard" style="margin-top:12px"></div>
+      </div>
+      <footer class="modal-footer">
+        <button id="modalCloseBtn" class="primary">Close</button>
+      </footer>
+    </div>
   </div>
 
   <!-- Audio elements (optional) -->
